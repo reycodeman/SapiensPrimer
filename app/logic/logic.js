@@ -1,16 +1,24 @@
 function getColor(piece) {
   if (!piece) return null;
+
   const parts = piece.split('_');
-  if (parts.length >= 1) return parts[0];
-  return piece.charAt(0);
+
+  if (parts.length === 3) {
+    return parts[0]; // ex: "w_3_45" → "w"
+  } else if (parts.length === 2) {
+    return parts[0].charAt(0); // ex: "w3_45" → "w"
+  } else {
+    return piece.charAt(0); // ex: "w3" → "w"
+  }
 }
+
 
 export function getValidMoves(board, row, col) {
   const piece = board[row][col];
   if (!piece) return [];
 
-  let color = null;
-  let value = null;
+  let color = '';
+  let value = 0;
   let rotation = 0;
 
   const parts = piece.split('_');
@@ -20,9 +28,9 @@ export function getValidMoves(board, row, col) {
     value = parseInt(parts[1], 10);
     rotation = parseInt(parts[2], 10);
   } else if (parts.length === 2) {
-    color = parts[0];
-    value = parseInt(parts[1], 10);
-    rotation = 0;
+    color = parts[0].charAt(0);
+    value = parseInt(parts[0].slice(1), 10);
+    rotation = parseInt(parts[1], 10);
   } else {
     color = piece.charAt(0);
     value = parseInt(piece.slice(1), 10);
@@ -31,7 +39,7 @@ export function getValidMoves(board, row, col) {
 
   if (!color || !value) return [];
 
-  const rotated = rotation !== 0;
+  const rotated = rotation === 45;
 
   const moves = [];
 
@@ -68,3 +76,4 @@ export function getValidMoves(board, row, col) {
 
   return moves;
 }
+
