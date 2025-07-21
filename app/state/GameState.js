@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { initialBoard } from '../utils/helpers';
 
@@ -35,12 +36,10 @@ export const GameProvider = ({ children }) => {
     startGame();
   }, []);
 
-  // 🔁 Alterna o turno e reinicia contagem
   const toggleTurn = () => {
     setCurrentTurn(prev => (prev === 'w' ? 'b' : 'w'));
   };
 
-  // ▶️ Inicia novo jogo e reinicia relógios
   const startGame = () => {
     setBoard(initialBoard);
     setCurrentTurn('w');
@@ -80,4 +79,3 @@ export const GameProvider = ({ children }) => {
 };
 
 export const useGame = () => useContext(GameContext);
-
