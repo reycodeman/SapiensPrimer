@@ -1,4 +1,3 @@
-// Board.js
 import React, { useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useGame } from '../state/GameState';
@@ -9,11 +8,14 @@ import { getAllianceTargets, performAlliance } from '../logic/alliance';
 import { performMartyrSacrifice } from '../logic/martyr';
 import Markers from './Markers';
 import { getHighlightMap } from '../logic/highlights';
+import EndGameModal from './EndGameModal';
 
 const Board = () => {
   const {
     board, selected, setSelected, setBoard,
-    currentTurn, toggleTurn, martyr, setMartyr
+    currentTurn, toggleTurn, martyr, setMartyr,
+    resetQuietTurns, incrementQuietTurns,
+    endMessage, startGame
   } = useGame();
 
   const lastTap = useRef(null);
@@ -24,16 +26,6 @@ const Board = () => {
     const piece = board[row][col];
 
     if (handleMartyrAction(row, col)) return;
-
-    // Se clicou em célula vazia fora do raio de ação, cancelar seleção
-    if (selected && !board[row][col]) {
-      const [selRow, selCol] = selected;
-      const valid = getValidMoves(board, selRow, selCol);
-      const isValid = valid.some(([r, c]) => r === row && c === col);
-      if (!isValid) {
-        setSelected(null);
-      }
-    }
 
     if (
       lastTap.current &&
@@ -54,12 +46,17 @@ const Board = () => {
     }
 
     handleSelection(row, col);
+
+    if (selected && !board[row][col]) {
+      const [selRow, selCol] = selected;
+      const valid = getValidMoves(board, selRow, selCol);
+      const isValid = valid.some(([r, c]) => r === row && c === col);
+      if (!isValid) setSelected(null);
+    }
   };
 
-  // 🧱 1. Mártir
   const handleMartyrAction = (row, col) => {
     if (!martyr) return false;
-
     const { row: mRow, col: mCol } = martyr;
     const martyrPiece = board[mRow][mCol];
     const martyrColor = martyrPiece?.charAt(0);
@@ -69,52 +66,52 @@ const Board = () => {
       const newBoard = performMartyrSacrifice(board, mRow, mCol, row, col);
       setBoard(newBoard);
       setMartyr(null);
-      toggleTurn();
       setSelected(null);
+      toggleTurn();
+      resetQuietTurns();
       return true;
     }
 
     return false;
   };
 
-  // 🧱 2. Rotação por duplo toque
   const handleDoubleTapRotate = (row, col) => {
     const rotatedBoard = rotatePiece(board, row, col);
     setBoard(rotatedBoard);
     setSelected(null);
     toggleTurn();
+    incrementQuietTurns();
   };
 
-  // 🧱 3. Aliança
   const handleAllianceAction = (row, col) => {
     const [selRow, selCol] = selected;
     const allianceTargets = getAllianceTargets(board, selRow, selCol);
     const isAlliance = allianceTargets.some(([r, c]) => r === row && c === col);
 
     if (isAlliance) {
-      const originalPiece1 = board[selRow][selCol];
-      const originalPiece2 = board[row][col];
-      const value1 = parseInt(originalPiece1.match(/\d+/)?.[0] || 0, 10);
-      const value2 = parseInt(originalPiece2.match(/\d+/)?.[0] || 0, 10);
-      const wasPromotedToSix = value1 === 5 || value2 === 5;
+      const piece1 = board[selRow][selCol];
+      const piece2 = board[row][col];
+      const val1 = parseInt(piece1.match(/\d+/)?.[0] || 0, 10);
+      const val2 = parseInt(piece2.match(/\d+/)?.[0] || 0, 10);
+      const wasPromoted = val1 === 5 || val2 === 5;
 
       const newBoard = performAlliance(board, selRow, selCol, row, col);
 
-      if (newBoard[row][col]?.includes('6') && wasPromotedToSix) {
+      if (newBoard[row][col]?.includes('6') && wasPromoted) {
         setMartyr({ row, col });
         setTimeout(() => setMartyr(null), 5000);
       }
 
       setBoard(newBoard);
-      toggleTurn();
       setSelected(null);
+      toggleTurn();
+      resetQuietTurns();
       return true;
     }
 
     return false;
   };
 
-  // 🧱 4. Movimento
   const handleMoveAction = (row, col) => {
     const [selRow, selCol] = selected;
     const valid = getValidMoves(board, selRow, selCol);
@@ -126,6 +123,7 @@ const Board = () => {
     const sourcePiece = board[selRow][selCol];
     const targetPiece = board[row][col];
     let newPiece = sourcePiece;
+    let isCapture = false;
     let promotedToSix = false;
 
     if (targetPiece && targetPiece.charAt(0) !== sourcePiece.charAt(0)) {
@@ -134,14 +132,10 @@ const Board = () => {
       let value = parseInt(parts[0].slice(1), 10);
       const rotation = parts.length === 3 ? '_45' : parts[1] === '45' ? '_45' : '';
 
-      if (value === 5) {
-        value += 1;
-        promotedToSix = true;
-      } else if (value < 5) {
-        value += 1;
-      }
-
+      value = Math.min(value + 1, 6);
       newPiece = `${color}${value}${rotation}`;
+      isCapture = true;
+      promotedToSix = value === 6;
     }
 
     newBoard[row][col] = newPiece;
@@ -153,12 +147,18 @@ const Board = () => {
     }
 
     setBoard(newBoard);
-    toggleTurn();
     setSelected(null);
+    toggleTurn();
+
+    if (isCapture) {
+      resetQuietTurns();
+    } else {
+      incrementQuietTurns();
+    }
+
     return true;
   };
 
-  // 🧱 5. Seleção de peça
   const handleSelection = (row, col) => {
     const piece = board[row][col];
     if (piece && piece.charAt(0) === currentTurn) {
@@ -211,14 +211,23 @@ const Board = () => {
   });
 
   return (
-    <View style={styles.board}>
-      {board.map((row, rowIndex) => (
-        <View key={rowIndex} style={styles.row}>
-          {row.map((cell, colIndex) => renderCell(cell, rowIndex, colIndex))}
-        </View>
-      ))}
-      <Markers highlights={highlights} board={board} pointerEvents="none"/>
-    </View>
+    <>
+      <View style={styles.board}>
+        {board.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.row}>
+            {row.map((cell, colIndex) => renderCell(cell, rowIndex, colIndex))}
+          </View>
+        ))}
+        <Markers highlights={highlights} board={board} pointerEvents="none" />
+      </View>
+
+      {/* Modal de fim de jogo que usa o estado global */}
+      <EndGameModal
+        visible={!!endMessage}
+        message={endMessage}
+        onRestart={startGame}
+      />
+    </>
   );
 };
 
@@ -238,7 +247,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 0,
     alignItems: 'center',
-    justifyContent: 'center',    
+    justifyContent: 'center',
   },
   piece: {
     width: '80%',
