@@ -1,5 +1,3 @@
-// logic/highlights.js
-
 import { getValidMoves } from './logic';
 import { getAllianceTargets } from './alliance';
 import { getAllEnemyTargets } from './martyr';
@@ -11,17 +9,29 @@ import { getAllEnemyTargets } from './martyr';
  * @param {number[] | null} params.selected - A posição selecionada [row, col]
  * @param {string} params.currentTurn - 'w' ou 'b'
  * @param {Object | null} params.martyr - { row, col } da peça mártir (se houver)
- * @returns {Object} Contendo validMoves, allianceTargets, martyrTargets
+ * @returns {Object} Contendo validMoves, captureTargets, allianceTargets, martyrTargets
  */
 export const getHighlightMap = ({ board, selected, currentTurn, martyr }) => {
   const validMoves = [];
   const allianceTargets = [];
+  const captureTargets = [];
   const martyrTargets = [];
 
   if (selected) {
     const [row, col] = selected;
-    validMoves.push(...getValidMoves(board, row, col));
+    const moves = getValidMoves(board, row, col);
+    validMoves.push(...moves);
     allianceTargets.push(...getAllianceTargets(board, row, col));
+
+    // Identificar capturas possíveis
+    const selectedPiece = board[row][col];
+    const color = selectedPiece?.charAt(0);
+    moves.forEach(([r, c]) => {
+      const target = board[r][c];
+      if (target && target.charAt(0) !== color) {
+        captureTargets.push([r, c]);
+      }
+    });
   }
 
   if (martyr) {
@@ -34,6 +44,7 @@ export const getHighlightMap = ({ board, selected, currentTurn, martyr }) => {
 
   return {
     validMoves,
+    captureTargets,
     allianceTargets,
     martyrTargets
   };

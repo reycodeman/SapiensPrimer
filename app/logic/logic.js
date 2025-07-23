@@ -1,4 +1,4 @@
-function getColor(piece) {
+export function getColor(piece) {
   if (!piece) return null;
 
   const parts = piece.split('_');
